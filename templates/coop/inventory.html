@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Inventory — The Coop{% endblock %}
+
+{% block content %}
+<div class="stack stack--lg">
+  <h1 class="page-title">Wood Inventory</h1>
+
+  <div class="grid-3">
+    <div class="card stat">
+      <div class="card-header">Available</div>
+      <div class="stat__value text-positive">{{ available }} cords</div>
+    </div>
+    <div class="card stat">
+      <div class="card-header">Spoken For</div>
+      <div class="stat__value" style="color: var(--color-warning)">{{ spoken_for }} cords</div>
+    </div>
+    <div class="card stat">
+      <div class="card-header">Sold YTD</div>
+      <div class="stat__value">{{ sold_ytd }} cords</div>
+    </div>
+  </div>
+
+  <div class="row row--gap">
+    <button hx-get="{% url 'coop:inventory' %}" hx-target="#inventory-table" hx-swap="innerHTML"
+            class="btn {% if not filter_status %}btn--active{% else %}btn--secondary{% endif %}">All</button>
+    <button hx-get="{% url 'coop:inventory' %}?status=available" hx-target="#inventory-table" hx-swap="innerHTML"
+            class="btn {% if filter_status == 'available' %}btn--active{% else %}btn--secondary{% endif %}">Available</button>
+    <button hx-get="{% url 'coop:inventory' %}?status=spoken_for" hx-target="#inventory-table" hx-swap="innerHTML"
+            class="btn {% if filter_status == 'spoken_for' %}btn--active{% else %}btn--secondary{% endif %}">Spoken For</button>
+    <button hx-get="{% url 'coop:inventory' %}?status=sold" hx-target="#inventory-table" hx-swap="innerHTML"
+            class="btn {% if filter_status == 'sold' %}btn--active{% else %}btn--secondary{% endif %}">Sold</button>
+  </div>
+
+  <div id="inventory-table">
+    {% include "partials/inventory_table.html" %}
+  </div>
+</div>
+{% endblock %}

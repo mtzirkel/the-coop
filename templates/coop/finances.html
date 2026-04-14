@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Finances — The Coop{% endblock %}
+
+{% block content %}
+<div class="stack stack--lg">
+  <h1 class="page-title">Finances — {{ "now"|date:"Y" }} YTD</h1>
+
+  <div class="grid-3">
+    <div class="card stat">
+      <div class="card-header">Revenue</div>
+      <div class="stat__value">${{ total_income }}</div>
+    </div>
+    <div class="card stat">
+      <div class="card-header">Expenses</div>
+      <div class="stat__value">${{ total_expenses }}</div>
+    </div>
+    <div class="card stat">
+      <div class="card-header">Net Profit</div>
+      <div class="stat__value {% if net_profit >= 0 %}text-positive{% else %}text-negative{% endif %}">${{ net_profit }}</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">Member Splits (based on approved hours)</div>
+    {% if splits %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Member</th>
+          <th class="text-right">Hours</th>
+          <th class="text-right">Share</th>
+          <th class="text-right">Projected Cut</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for split in splits %}
+        <tr>
+          <td class="font-medium">{{ split.name }}</td>
+          <td class="text-right">{{ split.hours }}h</td>
+          <td class="text-right">{{ split.percentage }}%</td>
+          <td class="text-right font-medium {% if split.cut >= 0 %}text-positive{% else %}text-negative{% endif %}">${{ split.cut }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty">No approved hours yet this year.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-header">Income</div>
+    {% if income_list %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Source</th>
+          <th class="text-right">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for inc in income_list %}
+        <tr>
+          <td>{{ inc.date|date:"M j" }}</td>
+          <td>{{ inc.source }}{% if inc.notes %} <span class="text-muted">— {{ inc.notes }}</span>{% endif %}</td>
+          <td class="text-right font-medium text-positive">${{ inc.amount }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty">No income recorded yet.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-header">Expenses</div>
+    {% if expense_list %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Category</th>
+          <th class="text-right">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for exp in expense_list %}
+        <tr>
+          <td>{{ exp.date|date:"M j" }}</td>
+          <td>{{ exp.category }}{% if exp.notes %} <span class="text-muted">— {{ exp.notes }}</span>{% endif %}</td>
+          <td class="text-right font-medium text-negative">${{ exp.amount }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty">No expenses recorded yet.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

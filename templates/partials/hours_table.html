@@ -1,0 +1,39 @@
+<div class="card">
+  <div class="row row--between" style="margin-bottom: 0.75rem">
+    <div class="card-header" style="margin-bottom: 0">{{ entries|length }} entries</div>
+    <div class="font-medium text-brand">Total: {{ total_hours }}h</div>
+  </div>
+
+  {% if entries %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Job</th>
+        <th>Time</th>
+        <th>Location</th>
+        <th>Notes</th>
+        <th class="text-right">Hours</th>
+        <th class="text-right">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for entry in entries %}
+      <tr>
+        <td>{{ entry.date|date:"M j" }}</td>
+        <td>{{ entry.job.name }}</td>
+        <td class="text-muted">{{ entry.time_display|default:"—" }}</td>
+        <td class="text-muted">{{ entry.location|default:"—" }}</td>
+        <td class="text-secondary" style="max-width: 16rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ entry.notes|default:"—" }}</td>
+        <td class="text-right font-medium">{{ entry.hours }}h</td>
+        <td class="text-right">
+          <span class="badge badge-{{ entry.status }}">{{ entry.get_status_display }}</span>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">No entries for this period.</p>
+  {% endif %}
+</div>

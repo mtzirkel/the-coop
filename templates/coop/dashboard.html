@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — The Coop{% endblock %}
+
+{% block content %}
+<div class="stack stack--lg">
+  <div>
+    <h1 class="page-title">Hey, {{ member.display_name }}</h1>
+    <p class="page-subtitle">Week of {{ week_start|date:"M j" }} – {{ week_end|date:"M j, Y" }}</p>
+  </div>
+
+  <!-- Stats Widget (Svelte Island) -->
+  <div class="card">
+    <div class="card-header">This Week</div>
+    <div
+      data-svelte-component="StatsWidget"
+      data-prop-myHours="{{ my_hours }}"
+      data-prop-teamHours="{{ team_hours }}"
+      data-prop-projectedCut="{{ my_cut }}"
+    ></div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="row row--gap">
+    <a href="{% url 'coop:log_hours' %}" class="btn btn--primary">+ Log Hours</a>
+    {% if pending_count %}
+    <a href="{% url 'coop:approvals' %}" class="btn btn--secondary">
+      {{ pending_count }} pending approval{{ pending_count|pluralize }}
+    </a>
+    {% endif %}
+  </div>
+
+  <!-- YTD Financials Summary -->
+  <div class="grid-3">
+    <div class="card stat">
+      <div class="card-header">Revenue YTD</div>
+      <div class="stat__value">${{ total_income }}</div>
+    </div>
+    <div class="card stat">
+      <div class="card-header">Expenses YTD</div>
+      <div class="stat__value">${{ total_expenses }}</div>
+    </div>
+    <div class="card stat">
+      <div class="card-header">Net Profit YTD</div>
+      <div class="stat__value {% if net_profit >= 0 %}text-positive{% else %}text-negative{% endif %}">${{ net_profit }}</div>
+    </div>
+  </div>
+
+  <!-- Recent Entries -->
+  <div class="card">
+    <div class="card-header">Recent Entries</div>
+    {% if recent_entries %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Job</th>
+          <th>Time</th>
+          <th class="text-right">Hours</th>
+          <th class="text-right">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in recent_entries %}
+        <tr>
+          <td>{{ entry.date|date:"M j" }}</td>
+          <td>{{ entry.job.name }}</td>
+          <td class="text-muted">{{ entry.time_display|default:"—" }}</td>
+          <td class="text-right font-medium">{{ entry.hours }}h</td>
+          <td class="text-right">
+            <span class="badge badge-{{ entry.status }}">{{ entry.get_status_display }}</span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty">No entries yet. <a href="{% url 'coop:log_hours' %}">Log your first hours</a>.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

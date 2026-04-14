@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Team Hours — The Coop{% endblock %}
+
+{% block content %}
+<div class="stack stack--lg">
+  <div class="row row--between">
+    <h1 class="page-title">Team Hours</h1>
+    <a href="{% url 'coop:hours' %}" class="btn btn--secondary">My Hours</a>
+  </div>
+
+  <div class="row row--gap" style="flex-wrap: wrap">
+    <select
+      hx-get="{% url 'coop:team_hours' %}"
+      hx-target="#team-table"
+      hx-swap="innerHTML"
+      hx-include="[name='member'],[name='job']"
+      name="period"
+      class="input input--select" style="width: auto"
+    >
+      <option value="week" {% if period == "week" %}selected{% endif %}>This Week</option>
+      <option value="month" {% if period == "month" %}selected{% endif %}>This Month</option>
+      <option value="year" {% if period == "year" %}selected{% endif %}>This Year</option>
+    </select>
+
+    <select
+      hx-get="{% url 'coop:team_hours' %}"
+      hx-target="#team-table"
+      hx-swap="innerHTML"
+      hx-include="[name='period'],[name='job']"
+      name="member"
+      class="input input--select" style="width: auto"
+    >
+      <option value="">All Members</option>
+      {% for m in all_members %}
+      <option value="{{ m.id }}" {% if filter_member == m.id|slugify %}selected{% endif %}>{{ m.display_name }}</option>
+      {% endfor %}
+    </select>
+
+    <select
+      hx-get="{% url 'coop:team_hours' %}"
+      hx-target="#team-table"
+      hx-swap="innerHTML"
+      hx-include="[name='period'],[name='member']"
+      name="job"
+      class="input input--select" style="width: auto"
+    >
+      <option value="">All Jobs</option>
+      {% for j in all_jobs %}
+      <option value="{{ j.id }}" {% if filter_job == j.id|slugify %}selected{% endif %}>{{ j.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div id="team-table">
+    {% include "partials/team_hours_table.html" %}
+  </div>
+</div>
+{% endblock %}

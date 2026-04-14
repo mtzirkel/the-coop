@@ -1,0 +1,43 @@
+{% if entry.status == "pending" %}
+<div class="card row row--between approval-card">
+  <div>
+    <div class="font-bold">{{ entry.member.display_name }}</div>
+    <div class="text-secondary" style="font-size: 0.8125rem">
+      {{ entry.job.name }} — {{ entry.date|date:"M j, Y" }} — {{ entry.time_display|default:"" }} {{ entry.hours }}h
+    </div>
+    {% if entry.location %}
+    <div class="text-muted" style="font-size: 0.8125rem; margin-top: 0.125rem">{{ entry.location }}</div>
+    {% endif %}
+    {% if entry.notes %}
+    <div class="text-muted" style="font-size: 0.8125rem">{{ entry.notes }}</div>
+    {% endif %}
+  </div>
+
+  <div class="row row--gap">
+    <button
+      hx-post="{% url 'coop:approve' entry.id %}"
+      hx-target="#entry-{{ entry.id }}"
+      hx-swap="outerHTML swap:400ms"
+      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+      class="btn btn--positive"
+      style="font-size: 0.75rem"
+    >Approve</button>
+    <button
+      hx-post="{% url 'coop:reject' entry.id %}"
+      hx-target="#entry-{{ entry.id }}"
+      hx-swap="outerHTML swap:400ms"
+      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+      class="btn btn--negative"
+      style="font-size: 0.75rem"
+    >Reject</button>
+  </div>
+</div>
+{% else %}
+{# After approve/reject — shows briefly then the parent div is removed #}
+<div class="card approval-card approval-done approval-done--{{ entry.status }}">
+  <div class="row row--between">
+    <span class="font-medium">{{ entry.member.display_name }} — {{ entry.job.name }}</span>
+    <span class="badge badge-{{ entry.status }}">{{ entry.get_status_display }}</span>
+  </div>
+</div>
+{% endif %}

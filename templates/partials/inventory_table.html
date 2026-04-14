@@ -1,0 +1,36 @@
+<div class="card">
+  <div class="card-header">{{ items|length }} items</div>
+
+  {% if items %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th class="text-right">Quantity</th>
+        <th>Status</th>
+        <th>Buyer</th>
+        <th>Location</th>
+        <th>Added</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      <tr>
+        <td class="font-medium">{{ item.wood_type }}</td>
+        <td class="text-right">{{ item.quantity }}</td>
+        <td>
+          <span class="badge {% if item.status == 'available' %}badge-available{% elif item.status == 'spoken_for' %}badge-spoken_for{% else %}badge-approved{% endif %}">
+            {{ item.get_status_display }}
+          </span>
+        </td>
+        <td class="text-secondary">{{ item.buyer|default:"—" }}</td>
+        <td class="text-muted">{{ item.location|default:"—" }}</td>
+        <td class="text-muted">{{ item.date_added|date:"M j" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">No inventory items{% if filter_status %} with this status{% endif %}.</p>
+  {% endif %}
+</div>

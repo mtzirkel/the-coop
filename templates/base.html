@@ -1,0 +1,166 @@
+{% load django_vite %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}The Coop{% endblock %}</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#60452a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <script>
+    // Apply saved theme immediately to prevent flash
+    (function() {
+      var t = localStorage.getItem("theme");
+      if (t) document.documentElement.setAttribute("data-theme", t);
+    })();
+  </script>
+  <!-- Critical inline CSS — covers the gap before Vite loads in dev mode.
+       In production the built CSS loads synchronously so this is just insurance. -->
+  <style>
+    :root {
+      --_canvas: oklch(98% 0.008 90);
+      --_surface: oklch(100% 0 0);
+      --_ink: oklch(22% 0.02 85);
+    }
+    html[data-theme="dark"] {
+      --_canvas: oklch(16% 0.01 85);
+      --_surface: oklch(22% 0.012 85);
+      --_ink: oklch(92% 0.01 85);
+    }
+    @media (prefers-color-scheme: dark) {
+      html:not([data-theme]) {
+        --_canvas: oklch(16% 0.01 85);
+        --_surface: oklch(22% 0.012 85);
+        --_ink: oklch(92% 0.01 85);
+      }
+    }
+    body {
+      background-color: var(--_canvas);
+      color: var(--_ink);
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
+      margin: 0;
+    }
+    /* Hide content until Vite CSS loads, then reveal via app.css */
+    body { opacity: 0; transition: opacity 80ms ease-in; }
+  </style>
+  {% vite_hmr_client %}
+  {% vite_asset "src/main.js" %}
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav__inner">
+      <a href="/" class="nav__brand">The Coop</a>
+
+      <div class="nav__links">
+        <a href="{% url 'coop:dashboard' %}"
+           class="nav__link {% if request.resolver_match.url_name == 'dashboard' %}nav__link--active{% endif %}">
+          Dashboard
+        </a>
+        <a href="{% url 'coop:hours' %}"
+           class="nav__link {% if request.resolver_match.url_name == 'hours' %}nav__link--active{% endif %}">
+          Hours
+        </a>
+        {% if member.role == 'admin' %}
+        <a href="{% url 'coop:team_hours' %}"
+           class="nav__link {% if request.resolver_match.url_name == 'team_hours' %}nav__link--active{% endif %}">
+          Team
+        </a>
+        {% endif %}
+        {% if member.role == 'admin' or member.dependents.exists %}
+        <a href="{% url 'coop:approvals' %}"
+           class="nav__link {% if request.resolver_match.url_name == 'approvals' %}nav__link--active{% endif %}">
+          Approvals
+          {% if pending_count %}<span class="ml-1 badge badge-pending">{{ pending_count }}</span>{% endif %}
+        </a>
+        {% endif %}
+        <a href="{% url 'coop:inventory' %}"
+           class="nav__link {% if request.resolver_match.url_name == 'inventory' %}nav__link--active{% endif %}">
+          Inventory
+        </a>
+        {% if member.role == 'admin' %}
+        <a href="{% url 'coop:finances' %}"
+           class="nav__link {% if request.resolver_match.url_name == 'finances' %}nav__link--active{% endif %}">
+          Finances
+        </a>
+        {% endif %}
+      </div>
+
+      <div class="row row--gap">
+        <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode">
+          <span class="theme-toggle__moon">&#9790;</span>
+          <span class="theme-toggle__sun">&#9788;</span>
+        </button>
+        <div class="nav__user">{{ request.auth_user.username }}</div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Offline indicator -->
+  <div id="offline-bar" class="offline-bar" hidden>
+    <span>You're offline — changes will sync when you reconnect</span>
+  </div>
+
+  <main class="page">
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <script>
+    function toggleTheme() {
+      var html = document.documentElement;
+      var current = html.getAttribute("data-theme");
+      var next = current === "dark" ? "light" : "dark";
+      html.setAttribute("data-theme", next);
+      localStorage.setItem("theme", next);
+    }
+
+    // ── Service Worker + Offline Support ──
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").then(function(reg) {
+        // Request background sync permission
+        if ("sync" in reg) {
+          // Browser supports background sync
+        }
+      });
+
+      // Listen for messages from the service worker
+      navigator.serviceWorker.addEventListener("message", function(event) {
+        if (event.data.type === "QUEUED") {
+          showOfflineToast("Saved offline — will sync when back online");
+        }
+        if (event.data.type === "SYNCED") {
+          showOfflineToast(event.data.count + " queued action(s) synced!");
+          // Reload to show fresh data
+          setTimeout(function() { location.reload(); }, 1500);
+        }
+      });
+    }
+
+    // Online/offline detection
+    function updateOnlineStatus() {
+      var bar = document.getElementById("offline-bar");
+      if (navigator.onLine) {
+        bar.hidden = true;
+        // Tell SW to replay the queue
+        if (navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage("REPLAY_QUEUE");
+        }
+      } else {
+        bar.hidden = false;
+      }
+    }
+    window.addEventListener("online", updateOnlineStatus);
+    window.addEventListener("offline", updateOnlineStatus);
+    updateOnlineStatus();
+
+    function showOfflineToast(msg) {
+      var el = document.createElement("div");
+      el.className = "offline-toast";
+      el.textContent = msg;
+      document.body.appendChild(el);
+      setTimeout(function() { el.remove(); }, 3000);
+    }
+  </script>
+</body>
+</html>

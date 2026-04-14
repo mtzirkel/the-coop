@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}Approvals — The Coop{% endblock %}
+
+{% block content %}
+<div class="stack stack--lg">
+  <h1 class="page-title">Pending Approvals</h1>
+
+  {% if pending_entries %}
+  <div class="stack stack--sm">
+    {% for entry in pending_entries %}
+    <div id="entry-{{ entry.id }}">
+      {% include "partials/approval_row.html" %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card">
+    <p class="empty">No entries waiting for approval.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

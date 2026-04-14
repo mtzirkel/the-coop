@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Hours — The Coop{% endblock %}
+
+{% block content %}
+<div class="stack stack--lg">
+  <div class="row row--between">
+    <h1 class="page-title">My Hours</h1>
+    <a href="{% url 'coop:log_hours' %}" class="btn btn--primary">+ Log Hours</a>
+  </div>
+
+  <div class="row row--gap">
+    <button hx-get="{% url 'coop:hours' %}?period=week" hx-target="#hours-table" hx-swap="innerHTML"
+            class="btn {% if period == 'week' %}btn--active{% else %}btn--secondary{% endif %}">This Week</button>
+    <button hx-get="{% url 'coop:hours' %}?period=month" hx-target="#hours-table" hx-swap="innerHTML"
+            class="btn {% if period == 'month' %}btn--active{% else %}btn--secondary{% endif %}">This Month</button>
+    <button hx-get="{% url 'coop:hours' %}?period=year" hx-target="#hours-table" hx-swap="innerHTML"
+            class="btn {% if period == 'year' %}btn--active{% else %}btn--secondary{% endif %}">This Year</button>
+  </div>
+
+  <div id="hours-table">
+    {% include "partials/hours_table.html" %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}Log Hours — The Coop{% endblock %}
+
+{% block content %}
+<div class="stack stack--lg">
+  <div class="row row--between">
+    <h1 class="page-title">Log Hours</h1>
+    <a href="{% url 'coop:hours' %}" class="btn btn--secondary">Back to Hours</a>
+  </div>
+
+  <div class="card" style="max-width: 32rem;">
+    {% load coop_tags %}
+    <div
+      data-svelte-component="LogHoursForm"
+      data-prop-jobs='{% jobs_json %}'
+      data-prop-csrfToken="{{ csrf_token }}"
+    ></div>
+  </div>
+</div>
+{% endblock %}

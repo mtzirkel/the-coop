@@ -1,0 +1,18 @@
+#!/bin/bash
+# Start both Django and Vite dev servers
+# Usage: ./bin/dev
+
+trap 'kill 0' EXIT
+
+echo "Starting The Coop development servers..."
+echo "  Django:  http://localhost:8000"
+echo "  Vite:    http://localhost:5173"
+echo ""
+
+# Start Vite dev server
+cd frontend && npm run dev &
+
+# Start Django dev server
+cd "$(dirname "$0")/.." && uv run python manage.py runserver &
+
+wait

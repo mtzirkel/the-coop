@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+"""
+Test coverage auditor for The Coop.
+
+Scans models, views, URLs, and API endpoints, then checks if tests.py
+has corresponding test coverage. Reports gaps.
+
+Usage: uv run python bin/audit-tests
+"""
+
+import ast
+import re
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+TESTS_FILE = ROOT / "coop" / "tests.py"
+
+
+def get_model_names():
+    """Extract Django model class names from models.py."""
+    source = (ROOT / "coop" / "models.py").read_text()
+    tree = ast.parse(source)
+    models = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef):
+            for base in node.bases:
+                base_name = ""
+                if isinstance(base, ast.Attribute):
+                    base_name = base.attr
+                elif isinstance(base, ast.Name):
+                    base_name = base.id
+                if base_name == "Model":
+                    models.append(node.name)
+    return models
+
+
+def get_view_functions():
+    """Extract view function names from views.py."""
+    source = (ROOT / "coop" / "views.py").read_text()
+    tree = ast.parse(source)
+    views = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and not node.name.startswith("_"):
+            views.append(node.name)
+    return views
+
+
+def get_url_names():
+    """Extract URL pattern names from urls.py."""
+    source = (ROOT / "coop" / "urls.py").read_text()
+    names = re.findall(r'name=["\'](\w+)["\']', source)
+    return names
+
+
+def get_api_endpoints():
+    """Extract API endpoint function names from api/endpoints.py."""
+    source = (ROOT / "coop" / "api" / "endpoints.py").read_text()
+    tree = ast.parse(source)
+    endpoints = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef):
+            # Check if decorated with @api.get/post/etc
+            for dec in node.decorator_list:
+                if isinstance(dec, ast.Call) and isinstance(dec.func, ast.Attribute):
+                    if dec.func.attr in ("get", "post", "put", "patch", "delete"):
+                        endpoints.append(node.name)
+    return endpoints
+
+
+def get_test_references():
+    """Get all text from tests.py to search for references."""
+    return TESTS_FILE.read_text()
+
+
+def audit():
+    test_text = get_test_references()
+    gaps = []
+
+    # Check models
+    models = get_model_names()
+    for model in models:
+        if model not in test_text:
+            gaps.append(f"MODEL   {model} — no test references found")
+
+    # Check views
+    views = get_view_functions()
+    for view in views:
+        if view not in test_text:
+            gaps.append(f"VIEW    {view} — no test references found")
+
+    # Check URL names
+    url_names = get_url_names()
+    for name in url_names:
+        # URL names appear as reverse() calls or url template tags
+        if name not in test_text:
+            gaps.append(f"URL     {name} — no test hitting this route")
+
+    # Check API endpoints
+    endpoints = get_api_endpoints()
+    for ep in endpoints:
+        if ep not in test_text:
+            gaps.append(f"API     {ep} — no test for this endpoint")
+
+    return models, views, url_names, endpoints, gaps
+
+
+if __name__ == "__main__":
+    models, views, url_names, endpoints, gaps = audit()
+
+    print(f"Models:    {len(models)} found")
+    print(f"Views:     {len(views)} found")
+    print(f"URLs:      {len(url_names)} found")
+    print(f"API:       {len(endpoints)} found")
+    print()
+
+    if gaps:
+        print(f"GAPS FOUND ({len(gaps)}):")
+        for gap in gaps:
+            print(f"  - {gap}")
+        sys.exit(1)
+    else:
+        print("All models, views, URLs, and endpoints have test coverage.")
+        sys.exit(0)
