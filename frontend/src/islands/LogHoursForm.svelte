@@ -1,9 +1,15 @@
 <script>
   let { jobs = "[]", csrfToken = "" } = $props();
 
-  let jobList = $derived(typeof jobs === "string" ? JSON.parse(jobs) : jobs);
+  // jobs starts from the server-rendered list; we keep our own local copy so
+  // when a new job is created inline we can prepend it without a page reload
+  let jobList = $state(typeof jobs === "string" ? JSON.parse(jobs) : jobs);
+
+  // Sentinel value for the "Add new job..." dropdown option
+  const NEW_JOB = "__new__";
 
   let selectedJob = $state("");
+  let newJobName = $state("");
   let date = $state(new Date().toISOString().split("T")[0]);
   let timeStart = $state("08:00");
   let timeEnd = $state("12:00");
@@ -12,6 +18,8 @@
   let submitting = $state(false);
   let success = $state(false);
   let error = $state("");
+
+  let isCreatingJob = $derived(selectedJob === NEW_JOB);
 
   let calculatedHours = $derived(() => {
     if (!timeStart || !timeEnd) return 0;
@@ -22,13 +30,43 @@
     return Math.round(diff / 60 * 100) / 100;
   });
 
+  let canSubmit = $derived(() => {
+    if (!timeStart || !timeEnd) return false;
+    if (isCreatingJob) return newJobName.trim().length > 0;
+    return selectedJob !== "";
+  });
+
+  async function createJob(name) {
+    const res = await fetch("/api/jobs/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": csrfToken,
+      },
+      body: JSON.stringify({ name }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.detail || "Failed to create job");
+    }
+    return res.json();
+  }
+
   async function submit() {
-    if (!selectedJob || !timeStart || !timeEnd) return;
+    if (!canSubmit()) return;
     submitting = true;
     error = "";
     success = false;
 
     try {
+      // If user chose "+ Add new job..." create the job first, then log hours
+      let jobId = selectedJob;
+      if (isCreatingJob) {
+        const newJob = await createJob(newJobName.trim());
+        jobList = [...jobList, newJob].sort((a, b) => a.name.localeCompare(b.name));
+        jobId = newJob.id;
+      }
+
       const res = await fetch("/api/hours/", {
         method: "POST",
         headers: {
@@ -36,7 +74,7 @@
           "X-CSRFToken": csrfToken,
         },
         body: JSON.stringify({
-          job_id: selectedJob,
+          job_id: jobId,
           date,
           time_start: timeStart,
           time_end: timeEnd,
@@ -46,12 +84,13 @@
       });
 
       if (!res.ok) {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         throw new Error(data.detail || "Failed to log hours");
       }
 
       success = true;
       selectedJob = "";
+      newJobName = "";
       timeStart = "08:00";
       timeEnd = "12:00";
       location = "";
@@ -81,8 +120,23 @@
       {#each jobList as job}
         <option value={job.id}>{job.name}</option>
       {/each}
+      <option value={NEW_JOB}>+ Add new job…</option>
     </select>
   </div>
+
+  {#if isCreatingJob}
+    <div class="field">
+      <label for="new-job-name" class="field__label">New job name</label>
+      <input
+        id="new-job-name"
+        type="text"
+        bind:value={newJobName}
+        placeholder="e.g. Equipment maintenance"
+        class="input"
+        autofocus
+      />
+    </div>
+  {/if}
 
   <div class="field">
     <label for="date" class="field__label">Date</label>
@@ -128,11 +182,11 @@
 
   <button
     type="submit"
-    disabled={submitting || !selectedJob || !timeStart || !timeEnd}
+    disabled={submitting || !canSubmit()}
     class="btn btn--primary full-width"
   >
     {#if submitting}
-      Logging...
+      {isCreatingJob ? "Creating job..." : "Logging..."}
     {:else}
       Log Hours
     {/if}

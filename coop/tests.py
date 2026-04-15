@@ -363,6 +363,50 @@ class APITests(BaseCoopTest):
         data = resp.json()
         self.assertEqual(len(data), 2)
 
+    def test_create_job(self):
+        # Inline job creation from the Log Hours form
+        from coop.models import Job
+
+        resp = self.client.post(
+            "/api/jobs/",
+            data={"name": "Trail Maintenance", "description": "Brushing the trail"},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["name"], "Trail Maintenance")
+        self.assertTrue(Job.objects.filter(name="Trail Maintenance").exists())
+
+    def test_create_job_idempotent_on_name(self):
+        # If the user types a name that already exists (case-insensitive),
+        # we return the existing job instead of erroring or creating a duplicate.
+        from coop.models import Job
+
+        existing = Job.objects.create(name="Splitting")
+        resp = self.client.post(
+            "/api/jobs/",
+            data={"name": "splitting"},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["id"], str(existing.id))
+        # No duplicate created
+        self.assertEqual(Job.objects.filter(name__iexact="splitting").count(), 1)
+
+    def test_create_job_reactivates_inactive(self):
+        # Re-creating a soft-deleted job should reactivate it
+        from coop.models import Job
+
+        job = Job.objects.create(name="Hauling", is_active=False)
+        resp = self.client.post(
+            "/api/jobs/",
+            data={"name": "Hauling"},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        job.refresh_from_db()
+        self.assertTrue(job.is_active)
+
     def test_create_time_entry_via_api(self):
         # The API accepts time_start/time_end and calculates hours automatically.
         # Admins and members are auto-approved; minors go to pending.

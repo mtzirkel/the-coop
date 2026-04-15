@@ -23,6 +23,11 @@ class JobOut(Schema):
     is_active: bool
 
 
+class JobIn(Schema):
+    name: str
+    description: str = ""
+
+
 class TimeEntryIn(Schema):
     job_id: UUID
     date: date
@@ -114,6 +119,29 @@ def health(request):
 @api.get("/jobs/", response=list[JobOut])
 def list_jobs(request):
     return Job.objects.filter(is_active=True)
+
+
+@api.post("/jobs/", response=JobOut)
+def create_job(request, data: JobIn):
+    """
+    Create a new job. Any authenticated member can create one — this lets
+    people add jobs inline from the Log Hours form when they need to.
+
+    Idempotent on name: if a job with the same name already exists (case-
+    insensitive), return the existing one instead of erroring.
+    """
+    name = data.name.strip()
+    if not name:
+        return 400, {"detail": "Name is required"}
+
+    existing = Job.objects.filter(name__iexact=name).first()
+    if existing:
+        if not existing.is_active:
+            existing.is_active = True
+            existing.save()
+        return existing
+
+    return Job.objects.create(name=name, description=data.description.strip())
 
 
 # ── Time Entries ─────────────────────────────────────────────────────────
