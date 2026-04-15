@@ -55,6 +55,28 @@ def _get_jwk_client() -> PyJWKClient | None:
     return _jwk_client
 
 
+def _resolve_signing_key(client: PyJWKClient, token: str):
+    """
+    Find the signing key for a token. Prefers matching on the token's
+    `kid` header, but if the token doesn't carry a kid we fall back to
+    the first key in the JWKS with a matching algorithm. This is needed
+    because noegos-auth currently signs without a kid.
+    """
+    # Try the standard path first — works when the token has a kid claim
+    try:
+        return client.get_signing_key_from_jwt(token).key
+    except Exception:
+        pass
+
+    # Fall back: pick a key that matches the token's algorithm
+    unverified_header = jwt.get_unverified_header(token)
+    token_alg = unverified_header.get("alg")
+    for key in client.get_jwk_set().keys:
+        if getattr(key, "algorithm_name", None) == token_alg:
+            return key.key
+    return None
+
+
 def verify_token(token: str) -> AuthUser | None:
     """Verify a noegos-auth JWT and return an AuthUser, or None if invalid."""
     client = _get_jwk_client()
@@ -62,10 +84,14 @@ def verify_token(token: str) -> AuthUser | None:
         return None
 
     try:
-        signing_key = client.get_signing_key_from_jwt(token)
+        signing_key = _resolve_signing_key(client, token)
+        if signing_key is None:
+            logger.debug("No JWKS key found for token")
+            return None
+
         payload = jwt.decode(
             token,
-            signing_key.key,
+            signing_key,
             algorithms=["EdDSA"],
             options={"verify_aud": False, "verify_iss": False},
         )
