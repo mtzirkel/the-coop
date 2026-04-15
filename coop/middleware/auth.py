@@ -4,10 +4,11 @@ import uuid
 from dataclasses import dataclass, field
 
 import httpx
+import jwt
 from django.conf import settings
 from django.http import HttpRequest, HttpResponseRedirect
-from jose import jwt
-from jose.exceptions import JWTError
+from jwt import PyJWKClient
+from jwt.exceptions import PyJWTError
 
 logger = logging.getLogger(__name__)
 
@@ -34,49 +35,39 @@ class AuthUser:
         return self.coop_role is not None
 
 
-# Cache JWKS keys in memory — refresh every hour
-_jwks_cache = {"keys": None, "fetched_at": 0}
-JWKS_CACHE_TTL = 3600  # 1 hour
+# PyJWKClient handles its own caching — instantiate lazily
+_jwk_client: PyJWKClient | None = None
 
 
-def _get_jwks():
-    """Fetch and cache the public keys from noegos-auth."""
-    now = time.time()
-    if _jwks_cache["keys"] and (now - _jwks_cache["fetched_at"]) < JWKS_CACHE_TTL:
-        return _jwks_cache["keys"]
-
-    try:
-        resp = httpx.get(
-            f"{settings.NOEGOS_AUTH_URL}/api/jwks",
-            timeout=5.0,
-        )
-        resp.raise_for_status()
-        jwks = resp.json()
-        _jwks_cache["keys"] = jwks
-        _jwks_cache["fetched_at"] = now
-        logger.info("Refreshed JWKS from noegos-auth")
-        return jwks
-    except Exception:
-        logger.exception("Failed to fetch JWKS from noegos-auth")
-        # Return stale cache if available
-        if _jwks_cache["keys"]:
-            return _jwks_cache["keys"]
-        return None
+def _get_jwk_client() -> PyJWKClient | None:
+    """Return the cached PyJWKClient, creating it on first use."""
+    global _jwk_client
+    if _jwk_client is None:
+        try:
+            _jwk_client = PyJWKClient(
+                f"{settings.NOEGOS_AUTH_URL}/api/jwks",
+                cache_keys=True,
+                lifespan=3600,
+            )
+        except Exception:
+            logger.exception("Failed to initialize JWK client")
+            return None
+    return _jwk_client
 
 
 def verify_token(token: str) -> AuthUser | None:
     """Verify a noegos-auth JWT and return an AuthUser, or None if invalid."""
-    jwks = _get_jwks()
-    if not jwks:
+    client = _get_jwk_client()
+    if client is None:
         return None
 
     try:
-        # python-jose can verify directly from a JWKS dict
+        signing_key = client.get_signing_key_from_jwt(token)
         payload = jwt.decode(
             token,
-            jwks,
+            signing_key.key,
             algorithms=["EdDSA"],
-            options={"verify_aud": False},
+            options={"verify_aud": False, "verify_iss": False},
         )
         return AuthUser(
             id=payload.get("sub", ""),
@@ -84,8 +75,12 @@ def verify_token(token: str) -> AuthUser | None:
             is_admin=payload.get("admin", False),
             apps=payload.get("apps", []),
         )
-    except JWTError:
+    except PyJWTError:
         logger.debug("JWT verification failed", exc_info=True)
+        return None
+    except Exception:
+        # Log unexpected errors but still return None — don't break requests
+        logger.exception("Unexpected error verifying JWT")
         return None
 
 
