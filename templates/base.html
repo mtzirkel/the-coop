@@ -79,6 +79,10 @@
           Inventory
         </a>
         {% if member.role == 'admin' %}
+        <a href="{% url 'coop:manage_jobs' %}"
+           class="nav__link {% if request.resolver_match.url_name == 'manage_jobs' %}nav__link--active{% endif %}">
+          Jobs
+        </a>
         <a href="{% url 'coop:finances' %}"
            class="nav__link {% if request.resolver_match.url_name == 'finances' %}nav__link--active{% endif %}">
           Finances

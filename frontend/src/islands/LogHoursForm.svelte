@@ -1,13 +1,25 @@
 <script>
-  let { jobs = "[]", csrfToken = "" } = $props();
+  let {
+    jobs = "[]",
+    csrfToken = "",
+    isAdmin = false,
+    otherMembers = "[]"
+  } = $props();
 
   // jobs starts from the server-rendered list; we keep our own local copy so
   // when a new job is created inline we can prepend it without a page reload
   let jobList = $state(typeof jobs === "string" ? JSON.parse(jobs) : jobs);
 
+  // Members the current admin can log hours on behalf of
+  let memberList = $derived(
+    typeof otherMembers === "string" ? JSON.parse(otherMembers) : otherMembers
+  );
+
   // Sentinel value for the "Add new job..." dropdown option
   const NEW_JOB = "__new__";
 
+  // "" = self, otherwise the target member's UUID
+  let logForMemberId = $state("");
   let selectedJob = $state("");
   let newJobName = $state("");
   let date = $state(new Date().toISOString().split("T")[0]);
@@ -67,20 +79,25 @@
         jobId = newJob.id;
       }
 
+      const body = {
+        job_id: jobId,
+        date,
+        time_start: timeStart,
+        time_end: timeEnd,
+        location,
+        notes,
+      };
+      if (isAdmin && logForMemberId) {
+        body.member_id = logForMemberId;
+      }
+
       const res = await fetch("/api/hours/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "X-CSRFToken": csrfToken,
         },
-        body: JSON.stringify({
-          job_id: jobId,
-          date,
-          time_start: timeStart,
-          time_end: timeEnd,
-          location,
-          notes,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {
@@ -91,6 +108,7 @@
       success = true;
       selectedJob = "";
       newJobName = "";
+      logForMemberId = "";
       timeStart = "08:00";
       timeEnd = "12:00";
       location = "";
@@ -111,6 +129,18 @@
 
   {#if error}
     <div class="flash flash--negative">{error}</div>
+  {/if}
+
+  {#if isAdmin && memberList.length > 0}
+    <div class="field">
+      <label for="log-for" class="field__label">Logging for</label>
+      <select id="log-for" bind:value={logForMemberId} class="input input--select">
+        <option value="">Myself</option>
+        {#each memberList as m}
+          <option value={m.id}>{m.display_name}</option>
+        {/each}
+      </select>
+    </div>
   {/if}
 
   <div class="field">

@@ -1,0 +1,31 @@
+{# Renders the inner <td>s of a job row, swapped via HTMX #}
+<td class="font-medium">{{ job.name }}</td>
+<td class="text-right">{{ job.entry_count }}</td>
+<td class="text-right">
+  {% if job.is_active %}
+    <span class="badge badge-approved">Active</span>
+  {% else %}
+    <span class="badge badge-rejected">Inactive</span>
+  {% endif %}
+</td>
+<td class="text-right">
+  <button
+    hx-post="{% url 'coop:toggle_job' job.id %}"
+    hx-target="#job-row-{{ job.id }}"
+    hx-swap="innerHTML"
+    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+    class="btn btn--secondary"
+    style="font-size: 0.75rem"
+  >{% if job.is_active %}Deactivate{% else %}Activate{% endif %}</button>
+  {% if job.entry_count == 0 %}
+  <button
+    hx-post="{% url 'coop:delete_job' job.id %}"
+    hx-target="#job-row-{{ job.id }}"
+    hx-swap="outerHTML"
+    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+    hx-confirm="Permanently delete this job?"
+    class="btn btn--negative"
+    style="font-size: 0.75rem"
+  >Delete</button>
+  {% endif %}
+</td>

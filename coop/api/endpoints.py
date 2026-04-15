@@ -35,6 +35,8 @@ class TimeEntryIn(Schema):
     time_end: str  # "HH:MM" format
     location: str = ""
     notes: str = ""
+    # Admin-only: log this entry on behalf of another member
+    member_id: Optional[UUID] = None
 
 
 class TimeEntryOut(Schema):
@@ -147,25 +149,34 @@ def create_job(request, data: JobIn):
 # ── Time Entries ─────────────────────────────────────────────────────────
 
 
-@api.post("/hours/", response=TimeEntryOut)
+@api.post("/hours/", response={200: TimeEntryOut, 403: dict})
 def create_time_entry(request, data: TimeEntryIn):
-    member = _get_member(request)
+    actor = _get_member(request)
     job = get_object_or_404(Job, pk=data.job_id, is_active=True)
 
-    # Minors get pending status, adults auto-approve
+    # Determine whose entry this is. Admins may log on behalf of any member;
+    # everyone else can only log for themselves.
+    target_member = actor
+    if data.member_id and data.member_id != actor.id:
+        if actor.role != CoopMember.Role.ADMIN:
+            return 403, {"detail": "Only admins can log hours for other members"}
+        target_member = get_object_or_404(CoopMember, pk=data.member_id, is_active=True)
+
+    # Minors logging for themselves go to pending. Anything an admin enters
+    # (for self or another member) is auto-approved by the admin.
     status = TimeEntry.Status.PENDING
     approved_by = None
     approved_at = None
-    if member.role != CoopMember.Role.MINOR:
+    if target_member.role != CoopMember.Role.MINOR or actor.role == CoopMember.Role.ADMIN:
         status = TimeEntry.Status.APPROVED
-        approved_by = member
+        approved_by = actor
         approved_at = timezone.now()
 
     t_start = datetime.strptime(data.time_start, "%H:%M").time()
     t_end = datetime.strptime(data.time_end, "%H:%M").time()
 
     entry = TimeEntry(
-        member=member,
+        member=target_member,
         job=job,
         date=data.date,
         time_start=t_start,

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Jobs — The Coop{% endblock %}
+
+{% block content %}
+<div class="stack stack--lg">
+  <div class="row row--between">
+    <h1 class="page-title">Manage Jobs</h1>
+    <a href="{% url 'coop:log_hours' %}" class="btn btn--secondary">+ Log Hours</a>
+  </div>
+
+  <p class="text-muted" style="font-size: 0.875rem">
+    Toggle jobs on or off. Jobs with no entries can be deleted permanently.
+  </p>
+
+  <div class="card">
+    <div class="card-header">{{ jobs|length }} jobs</div>
+
+    {% if jobs %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th class="text-right">Entries</th>
+          <th class="text-right">Status</th>
+          <th class="text-right">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for job in jobs %}
+        <tr id="job-row-{{ job.id }}">
+          {% include "partials/job_row.html" %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty">No jobs yet. <a href="{% url 'coop:log_hours' %}">Log hours</a> to create one inline.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

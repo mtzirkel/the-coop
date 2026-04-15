@@ -1,8 +1,9 @@
 from datetime import date, timedelta
 from decimal import Decimal
 
+from django.db import models
 from django.db.models import Q, Sum
-from django.http import HttpRequest
+from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 
@@ -338,8 +339,50 @@ def finances(request: HttpRequest):
 def log_hours(request: HttpRequest):
     member = _get_or_create_member(request)
     jobs = Job.objects.filter(is_active=True)
-    context = {"member": member, "jobs": jobs}
+    # Admins can pick whom to log for; everyone else logs for themselves
+    other_members = []
+    if member.role == CoopMember.Role.ADMIN:
+        other_members = list(
+            CoopMember.objects.filter(is_active=True).exclude(id=member.id)
+        )
+    context = {
+        "member": member,
+        "jobs": jobs,
+        "other_members": other_members,
+    }
     return render(request, "coop/log_hours.html", context)
+
+
+@require_role("admin")
+def manage_jobs(request: HttpRequest):
+    """Admin page: list all jobs with usage counts, toggle active, delete."""
+    member = _get_or_create_member(request)
+    jobs = Job.objects.annotate(entry_count=models.Count("time_entries")).order_by(
+        "-is_active", "name"
+    )
+    context = {"member": member, "jobs": jobs}
+    return render(request, "coop/manage_jobs.html", context)
+
+
+@require_role("admin")
+def toggle_job(request: HttpRequest, job_id):
+    """Flip a job between active and inactive (HTMX)."""
+    job = get_object_or_404(Job, pk=job_id)
+    job.is_active = not job.is_active
+    job.save()
+    job.entry_count = job.time_entries.count()
+    return render(request, "partials/job_row.html", {"job": job})
+
+
+@require_role("admin")
+def delete_job(request: HttpRequest, job_id):
+    """Delete a job — only allowed if it has no time entries."""
+    job = get_object_or_404(Job, pk=job_id)
+    if job.time_entries.exists():
+        from django.http import HttpResponseBadRequest
+        return HttpResponseBadRequest("Cannot delete a job that has time entries")
+    job.delete()
+    return HttpResponse("")  # HTMX swap removes the row
 
 
 def inventory(request: HttpRequest):

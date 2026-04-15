@@ -407,6 +407,134 @@ class APITests(BaseCoopTest):
         job.refresh_from_db()
         self.assertTrue(job.is_active)
 
+    def test_admin_logs_hours_for_other_member(self):
+        # Admin creates an entry on behalf of another member.
+        # The entry should be owned by the target member, auto-approved,
+        # and approved_by should reference the admin who created it.
+        from coop.models import CoopMember, Job, TimeEntry
+
+        neighbor = CoopMember.objects.create(
+            auth_user_id=uuid.uuid4(),
+            username="neighbor",
+            display_name="Neighbor",
+            role=CoopMember.Role.MEMBER,
+        )
+        job = Job.objects.create(name="Cutting")
+        resp = self.client.post(
+            "/api/hours/",
+            data={
+                "job_id": str(job.id),
+                "member_id": str(neighbor.id),
+                "date": str(date.today()),
+                "time_start": "08:00",
+                "time_end": "11:00",
+                "location": "Creek lot",
+                "notes": "Cut for neighbor",
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        entry = TimeEntry.objects.get()
+        self.assertEqual(entry.member, neighbor)
+        self.assertEqual(entry.status, "approved")
+        self.assertEqual(entry.approved_by, self.member)  # admin who logged it
+
+    def test_member_cannot_log_hours_for_others(self):
+        # Non-admin members get 403 when they try to set member_id
+        from coop.models import CoopMember, Job
+
+        # Demote dev user
+        self.member.role = CoopMember.Role.MEMBER
+        self.member.save()
+
+        neighbor = CoopMember.objects.create(
+            auth_user_id=uuid.uuid4(),
+            username="other",
+            display_name="Other",
+        )
+        job = Job.objects.create(name="Cutting")
+        resp = self.client.post(
+            "/api/hours/",
+            data={
+                "job_id": str(job.id),
+                "member_id": str(neighbor.id),
+                "date": str(date.today()),
+                "time_start": "08:00",
+                "time_end": "11:00",
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 403)
+
+
+class JobManagementTests(BaseCoopTest):
+    """Admin job management page — list, toggle, delete."""
+
+    def test_manage_jobs_loads_for_admin(self):
+        from coop.models import Job
+
+        Job.objects.create(name="Cutting")
+        resp = self.client.get("/jobs/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Manage Jobs")
+        self.assertContains(resp, "Cutting")
+
+    def test_toggle_job(self):
+        from coop.models import Job
+
+        job = Job.objects.create(name="Cutting", is_active=True)
+        resp = self.client.post(f"/jobs/{job.id}/toggle/")
+        self.assertEqual(resp.status_code, 200)
+        job.refresh_from_db()
+        self.assertFalse(job.is_active)
+
+        # Toggle back
+        resp = self.client.post(f"/jobs/{job.id}/toggle/")
+        job.refresh_from_db()
+        self.assertTrue(job.is_active)
+
+    def test_delete_job_with_no_entries(self):
+        from coop.models import Job
+
+        job = Job.objects.create(name="Cutting")
+        resp = self.client.post(f"/jobs/{job.id}/delete/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(Job.objects.filter(pk=job.id).exists())
+
+    def test_cannot_delete_job_with_entries(self):
+        # Refuse to permanently delete a job that has time entries —
+        # otherwise we'd cascade and lose the work history
+        from coop.models import Job, TimeEntry
+
+        job = Job.objects.create(name="Cutting")
+        TimeEntry.objects.create(
+            member=self.member,
+            job=job,
+            date=date.today(),
+            hours=Decimal("1.00"),
+            status=TimeEntry.Status.APPROVED,
+        )
+        resp = self.client.post(f"/jobs/{job.id}/delete/")
+        self.assertEqual(resp.status_code, 400)
+        self.assertTrue(Job.objects.filter(pk=job.id).exists())
+
+    @override_settings(
+        NOEGOS_AUTH_DEV_BYPASS=True,
+        NOEGOS_AUTH_DEV_USER_ID=uuid.UUID(int=99),
+        NOEGOS_AUTH_DEV_USERNAME="regular",
+    )
+    def test_manage_jobs_forbidden_for_non_admin(self):
+        from coop.models import CoopMember
+
+        CoopMember.objects.create(
+            auth_user_id=uuid.UUID(int=99),
+            username="regular",
+            display_name="Regular",
+            role=CoopMember.Role.MEMBER,
+        )
+        resp = self.client.get("/jobs/")
+        self.assertEqual(resp.status_code, 403)
+
     def test_create_time_entry_via_api(self):
         # The API accepts time_start/time_end and calculates hours automatically.
         # Admins and members are auto-approved; minors go to pending.

@@ -15,6 +15,8 @@
       data-svelte-component="LogHoursForm"
       data-prop-jobs='{% jobs_json %}'
       data-prop-csrfToken="{{ csrf_token }}"
+      data-prop-isAdmin="{% if member.role == 'admin' %}true{% else %}false{% endif %}"
+      data-prop-otherMembers='{% other_members_json other_members %}'
     ></div>
   </div>
 </div>

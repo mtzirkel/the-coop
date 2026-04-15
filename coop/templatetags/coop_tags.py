@@ -16,3 +16,10 @@ def jobs_json():
     for job in jobs:
         job["id"] = str(job["id"])
     return mark_safe(json.dumps(jobs))
+
+
+@register.simple_tag
+def other_members_json(members):
+    """Serialize a list of CoopMembers to JSON for Svelte islands."""
+    data = [{"id": str(m.id), "display_name": m.display_name} for m in members]
+    return mark_safe(json.dumps(data))

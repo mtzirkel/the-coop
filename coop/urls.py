@@ -14,4 +14,7 @@ urlpatterns = [
     path("approvals/<uuid:entry_id>/reject/", views.reject_entry, name="reject"),
     path("inventory/", views.inventory, name="inventory"),
     path("finances/", views.finances, name="finances"),
+    path("jobs/", views.manage_jobs, name="manage_jobs"),
+    path("jobs/<uuid:job_id>/toggle/", views.toggle_job, name="toggle_job"),
+    path("jobs/<uuid:job_id>/delete/", views.delete_job, name="delete_job"),
 ]
